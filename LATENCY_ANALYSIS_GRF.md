@@ -152,3 +152,11 @@ This analysis follows SBAA535 Section 8.7 (ADS1261 Example) and Sections 6 (Anal
 **Reference**: SBAA535A Section 7 - "Important Takeaways"
 - Delta-sigma ADCs can achieve cycle times much faster than naive calculation suggests when accounting for settling and overhead
 - For ADS1261 in 4-channel multiplex: 1000+ Hz per channel is achievable within latency budget
+
+## Future Work
+
+- [ ] **Verify ISO 18001 standard reference for force plate measurement rates**
+  - Current claim: ISO 18001 requires 500+ Hz sampling for force plates
+  - Action: Obtain actual ISO 18001 or ISO 6954 document to confirm exact specification
+  - Alternative standards to check: ISO/DIS 18001 (Sports - Footwear measurement), ISO 6954 (Ergonomics), ASTM standards for biomechanics testing
+  - Note: Industry de-facto standard is 500-1000 Hz per channel; exact ISO reference needs verification

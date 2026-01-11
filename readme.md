@@ -20,6 +20,7 @@ Using ESP32C6 and TI's ADS1261 ADC to build a **force platform for measuring gro
 - **Multiplexing**: 4 channels sequential at 40 kSPS system rate = **~1000-1200 Hz per channel** (ISO 18001 compliant)
 - **Conversion Latency**: ~130 µs per sample (per SBAA535 analysis)
 - **Data Rate Optimization**: See [DATA_RATE_ANALYSIS.md](DATA_RATE_ANALYSIS.md) and [LATENCY_ANALYSIS_GRF.md](LATENCY_ANALYSIS_GRF.md)
+- **Visualization**: Real-time plotter for macOS/Linux/Windows - See [SERIAL_PLOTTER_GUIDE.md](SERIAL_PLOTTER_GUIDE.md)
 
 ## References
 - **TI ADS1261 Datasheet**: https://www.ti.com/document-viewer/ads1261/datasheet
@@ -47,12 +48,16 @@ Using ESP32C6 and TI's ADS1261 ADC to build a **force platform for measuring gro
 ```
 ads1261/
 ├── readme.md                          # Project overview
+├── INDEX.md                           # Master documentation index
 ├── QUICKSTART.md                      # Quick start deployment guide (START HERE)
-├── PROJECT_STATUS.md                  # Complete project status and specifications
+├── SERIAL_PLOTTER_GUIDE.md            # Real-time plotting tool (macOS/Linux/Windows)
+├── DEPLOYMENT_CHECKLIST.md            # Step-by-step deployment
+├── PROJECT_STATUS.md                  # Complete technical specifications
 ├── HARDWARE_SETUP.md                  # Pin configuration and wiring guide
 ├── DATA_RATE_ANALYSIS.md              # ADS1261 data rate calculations
 ├── LATENCY_ANALYSIS_GRF.md            # SBAA535 latency analysis for GRF
-├── calibration_tool.py                # Python tool for automated calibration
+├── calibration_tool.py                # Python calibration wizard
+├── serial_plotter.py                  # Real-time plotting tool (macOS compatible)
 ├── CMakeLists.txt                     # Root CMake configuration
 ├── Makefile                           # Build convenience commands
 ├── sdkconfig                          # ESP-IDF configuration

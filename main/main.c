@@ -22,6 +22,11 @@ static const char *TAG = "LoadCell";
 #define DATA_RATE               ADS1261_DR_40               /* 40 kSPS = ~1000-1200 Hz per channel (4-channel mux) - ISO 18001 compliant */
 #define SAMPLE_BUFFER_SIZE      1000                        /* Buffer for streaming measurements */
 
+/* Output Format Selection */
+#define OUTPUT_FORMAT_HUMAN     1   /* Readable format with labels (default) */
+#define OUTPUT_FORMAT_CSV       0   /* CSV format for logging/analysis */
+#define OUTPUT_FORMAT           OUTPUT_FORMAT_HUMAN
+
 /* Note: Ratiometric measurement (bridge transducers)
  * - Do NOT need to know exact reference voltage value
  * - Bridge output is naturally ratiometric to excitation voltage
@@ -137,16 +142,34 @@ void app_main(void)
         /* Log current frame (all 4 channels) */
         if (sample_count % 4 == 0) {
             float total_force = 0;
+            
+#if OUTPUT_FORMAT == OUTPUT_FORMAT_CSV
+            /* CSV format: timestamp,ch1,ch2,ch3,ch4,total */
+            printf("%lu,%lu", sample_count / 4, esp_timer_get_time());
+#else
+            /* Human-readable format (default) */
             ESP_LOGI(TAG, "[Frame %lu] Force readings (N):", sample_count / 4);
+#endif
+            
             for (int ch = 0; ch < NUM_LOADCELLS; ch++) {
+                total_force += force_samples[ch].force_newtons;
+                
+#if OUTPUT_FORMAT == OUTPUT_FORMAT_CSV
+                printf(",%.4f", force_samples[ch].force_newtons);
+#else
                 ESP_LOGI(TAG, "  Ch%d: %.2f N (raw=%06lx, norm=%.4f)",
                         ch + 1,
                         force_samples[ch].force_newtons,
                         force_samples[ch].raw_adc & 0xFFFFFF,
                         force_samples[ch].normalized);
-                total_force += force_samples[ch].force_newtons;
+#endif
             }
+            
+#if OUTPUT_FORMAT == OUTPUT_FORMAT_CSV
+            printf(",%.4f\n", total_force);
+#else
             ESP_LOGI(TAG, "  Total: %.2f N", total_force);
+#endif
         }
 
     /* Cleanup */

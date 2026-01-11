@@ -2,7 +2,7 @@ PYTHON = python3
 PORT ?= /dev/ttyUSB0
 BAUD ?= 921600
 
-.PHONY: build flash monitor clean calibrate config help all
+.PHONY: build flash monitor clean calibrate config plot help all
 
 help:
 	@echo "GRF Force Platform - Build & Deployment"
@@ -11,6 +11,7 @@ help:
 	@echo "make flash           - Build and flash"
 	@echo "make monitor         - Start serial monitor"
 	@echo "make flash-monitor   - Build, flash, and monitor"
+	@echo "make plot            - Start real-time serial plotter (macOS/Linux)"
 	@echo "make clean           - Clean artifacts"
 	@echo "make config          - ESP-IDF menuconfig"
 	@echo "make calibrate       - Run calibration tool"
@@ -29,6 +30,10 @@ monitor:
 
 flash-monitor: build
 	idf.py -p $(PORT) build flash monitor --baud $(BAUD)
+
+plot:
+	@echo "Starting real-time serial plotter (macOS/Linux/Windows compatible)..."
+	python3 serial_plotter.py --port $(PORT) --baud $(BAUD)
 
 clean:
 	idf.py fullclean

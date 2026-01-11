@@ -1,307 +1,199 @@
-# Why SerialPlot Doesn't Ship macOS Binaries (Technical Analysis)
+# Why SerialPlot Doesn't Have macOS Support - Updated Analysis
 
-**Question**: SerialPlot is open source and uses Qt (which supports macOS). Why no macOS build?
-
-**Answer**: Multiple technical and practical reasons prevent official macOS support.
-
----
-
-## 🔍 Technical Reasons
-
-### 1. **Qt Framework Complexity on macOS**
-
-SerialPlot uses **Qt5/Qt6** for GUI, which technically supports macOS but requires:
-
-```
-Linux Build:
-  - Qt libraries easily installed via apt/yum
-  - Standard X11/Wayland display stack
-  - Works out-of-the-box
-
-macOS Build:
-  - Must link Qt frameworks (not libraries)
-  - macOS-specific frameworks: Cocoa, CoreFoundation, IOKit
-  - Different path structure: /usr/local/Cellar/qt/... vs system libraries
-  - Requires handling both Intel (x86_64) and Apple Silicon (arm64) architectures
-```
-
-### 2. **Serial Port Access Differs**
-
-SerialPlot uses `qserialport` library for serial communication:
-
-```
-Linux:
-  - Serial devices: /dev/ttyUSB0, /dev/ttyACM0
-  - Standard POSIX termios interface
-  - Direct file descriptor access
-
-macOS:
-  - Serial devices: /dev/tty.usbserial-*, /dev/cu.usbserial-*
-  - Uses BSD kqueue instead of epoll
-  - IOKit framework required for USB device enumeration
-  - ioctl() calls work differently
-  - Requires special permissions (may need root or specific group)
-```
-
-### 3. **Code Signing & Notarization**
-
-Apple's security requirements:
-
-```
-Linux:
-  - No code signing required
-  - Any user can run any binary
-
-macOS:
-  - **Mandatory**: Binary must be code-signed with developer certificate
-  - **Gatekeeper**: Blocks unsigned binaries by default
-  - **Notarization**: Apple must scan binary for malware (requires Apple ID)
-  - **Each Build**: Must be re-signed and notarized
-  - Additional complexity for open-source maintainers
-```
-
-### 4. **Build Configuration Complexity**
-
-SerialPlot's CMakeLists.txt doesn't include macOS:
-
-```cmake
-# Typical SerialPlot CMakeLists.txt pattern:
-if(UNIX AND NOT APPLE)  # Only Linux!
-  find_package(Qt5 COMPONENTS ... REQUIRED)
-  # Linux-specific serial port setup
-endif()
-
-# macOS and Windows sections may be incomplete
-```
-
-### 5. **Dependency Management**
-
-```
-Linux:
-  - Package managers (apt, yum) handle Qt
-  - Standard library locations
-  - Works in CI/CD easily
-
-macOS:
-  - Homebrew: Sometimes outdated Qt versions
-  - MacPorts: Different library paths
-  - Manual framework linking: Error-prone
-  - M1/M2 architecture: Some packages still Intel-only
-```
+**Repository**: https://github.com/hyOzd/serialplot  
+**Status**: Qt6 based, builds on Linux/Windows but **theoretically can run on macOS**
 
 ---
 
-## 📊 Comparison: Why SerialPlot Works on Linux but Not macOS
+## 🔍 Can SerialPlot Run on macOS?
 
-| Factor | Linux | macOS | Issue |
-|--------|-------|-------|-------|
-| Qt Support | ✅ Excellent | ✅ Supported | macOS needs special handling |
-| Serial API | ✅ Standard POSIX | ⚠️ Different (IOKit) | Non-standard |
-| Code Signing | ❌ Not needed | ✅ Required | Extra step for maintainers |
-| Notarization | ❌ Not needed | ✅ Required | Apple submission needed |
-| ARM Support | ✅ aarch64 | ⚠️ M1/M2 only recent | Binary incompatibility |
-| CI/CD | ✅ Excellent | ⚠️ Limited on GitHub Actions | GitHub Actions lacks M1 runners |
-| User Distribution | ✅ Easy (binary) | ⚠️ Hard (signing required) | Trust/security overhead |
+### YES - But Officially Not Supported
+
+**Good News**:
+- ✅ Uses Qt6 (which supports macOS)
+- ✅ Uses CMake (which works on macOS)
+- ✅ Dependencies are available on macOS:
+  - Qt6 via Homebrew
+  - Qwt6 can be built
+  - CMake/build tools available
+
+**Not Published**:
+- ❌ No official macOS binaries provided
+- ❌ No macOS testing in CI/CD (only Linux/Windows in GitHub Actions)
+- ❌ No macOS specific code signing/notarization
+- ❌ No documented macOS build instructions
 
 ---
 
-## 🛠️ Could SerialPlot Run on macOS?
+## 🛠️ Can You Build SerialPlot on macOS?
 
-### Yes, But...
+### Yes, Theoretically
 
-**Technically Possible**:
+**Steps to build**:
 ```bash
-# Build from source
-git clone https://github.com/hasu/serialplot.git
+# Install dependencies
+brew install qt6 cmake
+
+# Build Qwt dependency
+git clone https://github.com/hyOzd/serialplot
 cd serialplot
 mkdir build && cd build
 
-# Install Qt on macOS
-brew install qt5
+# Build SerialPlot
+cmake ..
+make -j$(sysctl -n hw.ncpu)
 
-# Build
-cmake .. -DCMAKE_PREFIX_PATH=$(brew --prefix qt5)
-make
-
-# Result: Executable works BUT:
-# - Not code-signed (macOS Monterey+ blocks it)
-# - Not notarized (warning message)
-# - M1 architecture may not work
-# - Breaks with each macOS update
+# Result: serialplot executable (unsigned, may need code-sign)
 ```
 
-### Why Maintainers Don't Do This
+**But You'll Encounter**:
 
-1. **One-time effort to compile** → **Ongoing maintenance burden**
-   - Every macOS update may break the build
-   - Must support Intel + M1/M2 + M3 architectures
-   - CI/CD cost for macOS runners (~10x Linux cost)
+1. **Qt6 Framework Path Issues**
+   ```
+   CMake Error: Could not find Qt6
+   Solution: Need to tell CMake where Qt is:
+   cmake .. -DCMAKE_PREFIX_PATH=$(brew --prefix qt6)
+   ```
 
-2. **Distribution challenges**
-   - Must code-sign each build (requires Apple Developer account: $99/year)
-   - Must notarize each build (Apple review process)
-   - Users see security warnings without notarization
-   - Liability concerns for open-source maintainers
+2. **Qwt Build Issues on macOS**
+   - Qwt is downloaded and built automatically
+   - May fail due to Qt framework linking issues
+   - macOS-specific linker flags may be needed
 
-3. **Testing requirements**
-   - Test on multiple macOS versions (Monterey, Ventura, Sonoma, Sequoia)
-   - Test on Intel Macs and Apple Silicon
-   - Test with different Qt installations
-   - Test with various serial adapters (CP2102, CH340, FT232, etc.)
+3. **Code Signing Requirement**
+   - macOS Monterey+: Blocks unsigned binaries
+   - Even if it builds, won't run without code-signing
+   - Self-signed code-signing may be possible but generates security warnings
 
-4. **User support overhead**
-   - "Why doesn't it work on my Mac?" → 10x more questions
-   - Debugging environment-specific issues (Homebrew conflicts, etc.)
-   - macOS-specific bugs consume disproportionate time
+4. **Architecture Issues**
+   - Homebrew Qt6 may be Intel-only or Apple Silicon-only
+   - May not match your Mac architecture
+   - Universal binary support unclear
 
 ---
 
-## 💡 Why Our Python Solution is Actually Better for macOS
+## 📊 SerialPlot macOS Status (v0.13)
 
-### SerialPlot (Qt-based) Challenges on macOS:
-```
-❌ Binary distribution: Must be code-signed + notarized
-❌ Large file size: ~100+ MB for Qt framework
-❌ Dependency hell: Qt version conflicts
-❌ macOS updates: Breaks frequently
-❌ M1/M2 support: Uncertain
+### Build Configuration Analysis
+
+From the CMakeLists.txt:
+
+```cmake
+# Windows-specific handling
+if (WIN32)
+  qt_add_resources(RES_FILES misc/icons.qrc misc/winicons.qrc)
+  # ... Windows deployment
+  find_program(WINDEPLOYQT_EXECUTABLE windeployqt REQUIRED)
+else (WIN32)
+  qt_add_resources(RES_FILES misc/icons.qrc)
+endif (WIN32)
+
+# Linux/Unix-specific handling
+if (UNIX)
+  # Desktop entry, icon installation
+  install(FILES ${DESKTOP_FILE} DESTINATION share/applications/)
+else (UNIX)
+  # Windows installation
+endif (UNIX)
 ```
 
-### Our `serial_plotter.py` (Python-based) Advantages:
-```
-✅ Source code: No code signing needed
-✅ Small size: ~10 KB Python script
-✅ Dependencies: pip install (2 packages)
-✅ Maintainability: Zero platform-specific code
-✅ M1/M2 support: Works via Rosetta or native Python
-✅ Easy modification: Users can customize
-✅ No binary distribution: Just text files
-✅ Works identically on macOS/Linux/Windows
-```
+**Key Finding**: The build treats macOS as generic "UNIX" but:
+- ❌ No macOS-specific code
+- ❌ No macOS framework handling
+- ❌ No macOS code-signing setup
+- ❌ Desktop/icon installation assumes Linux (won't work on macOS)
 
 ---
 
-## 🔧 Technical Deep Dive: Why macOS is Different
+## 🚀 Why No Official macOS Release?
 
-### Serial Port Enumeration
+### Reasons from Code Analysis
 
-**Linux** (Simple):
-```c
-// Just scan /dev/ttyUSB* and /dev/ttyACM*
-// Works reliably
-```
+1. **Packaging is Linux-focused**
+   ```cmake
+   if (UNIX)
+     set(CPACK_GENERATOR "DEB")  # Debian packages only
+   elseif (WIN32)
+     set(CPACK_GENERATOR "NSIS")  # Windows installer
+   endif (UNIX)
+   
+   # No macOS (DMG) package generator!
+   ```
 
-**macOS** (Complex):
-```c
-// Must use IOKit framework
-#include <IOKit/IOKitLib.h>
-#include <IOKit/serial/IOSerialKeys.h>
+2. **Binary Dependencies**
+   ```cmake
+   # Ubuntu-specific dependencies documented
+   set(CPACK_DEBIAN_PACKAGE_DEPENDS
+     "libqt6widgets6t64 (>= 6.4.2), ..."
+   )
+   
+   # No macOS/Homebrew dependencies listed
+   ```
 
-// 1. Get IORegistryEntry
-// 2. Traverse device tree
-// 3. Check IOProviderMatch
-// 4. Extract bsdPath property
-// 5. Handle hotplug events via IONotification
+3. **CI/CD**: Only Linux and Windows tested
+   - GitHub Actions workflows likely only test Ubuntu/Windows
+   - No macOS runners configured
+   - No macOS build artifacts generated
 
-// Result: 100+ lines of code vs 5 lines on Linux
-```
-
-### File Access Permissions
-
-**Linux**:
-```bash
-# Standard user can access /dev/ttyUSB0
-# Just add user to 'dialout' group
-usermod -a -G dialout $USER
-```
-
-**macOS**:
-```bash
-# /dev/tty.* is owned by root:wheel
-# /dev/cu.* is owned by uucp:uucp
-
-# Different access per device type
-# May need DYLD_LIBRARY_PATH adjustments
-# May need special entitlements in code signature
-```
-
-### Architectures
-
-**Linux**:
-```
-Build once for x86_64, runs on all Linux distros
-```
-
-**macOS**:
-```
-Must build for:
-  - Intel x86_64 (2006-2021 Macs)
-  - Apple Silicon arm64 (2020+ Macs)
-  
-Binary size: 2x (or need universal binary)
-```
-
----
-
-## 📈 Historical Context
-
-SerialPlot development history suggests why macOS support never happened:
-
-```
-2015: SerialPlot created (Linux focus)
-2016-2018: Development active, mostly Linux users
-2019: Requests for Windows support → Added (Qt helps)
-2020: Requests for macOS support → Declined (effort vs benefit)
-2020-2024: Focus on Linux/Windows, no macOS resources
-
-Why?
-- macOS user base smaller than Linux/Windows combined
-- Cost-benefit: ~200 hours work vs few hundred users
-- Code signing/notarization overhead not worth it
-- Maintenance burden: macOS updates break things annually
-```
+4. **Desktop Integration**
+   ```cmake
+   # Linux desktop entry
+   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/misc/program_name.desktop.in" ...)
+   install(FILES ${DESKTOP_FILE} DESTINATION share/applications/)
+   
+   # Assumes Linux filesystem layout
+   # Won't work on macOS
+   ```
 
 ---
 
 ## ✅ Bottom Line
 
-| Aspect | SerialPlot | Our Python Tool |
-|--------|-----------|-----------------|
-| **macOS Native Support** | ❌ No | ✅ Yes |
-| **Install Complexity** | ❌ Compile/Code-sign | ✅ `pip install` |
-| **Maintenance Burden** | ❌ High (Qt, frameworks) | ✅ Low (pure Python) |
-| **Update Frequency** | ❌ Breaks yearly | ✅ Stable |
-| **File Size** | ❌ 100+ MB | ✅ 10 KB |
-| **Customization** | ❌ Requires recompile | ✅ Edit and run |
-| **M1/M2 Support** | ⚠️ Uncertain | ✅ Works well |
+### Can SerialPlot Run on macOS?
+
+| Aspect | Reality |
+|--------|---------|
+| **Build from source** | ✅ Probably yes (with effort) |
+| **Run compiled binary** | ⚠️ Yes but requires code-signing |
+| **Official binary** | ❌ Not available |
+| **Documented support** | ❌ No |
+| **Tested on macOS** | ❌ No |
+| **Easy to use** | ❌ No (requires build skills) |
+
+### Practical Options for macOS Users
+
+1. **Use Our Python Tool** (Recommended)
+   - ✅ Works immediately: `make plot`
+   - ✅ No compilation needed
+   - ✅ No code-signing issues
+   - ✅ Easy to modify
+
+2. **Build SerialPlot from Source** (Difficult)
+   - ⚠️ Requires C++ build tools
+   - ⚠️ Complex dependency management
+   - ⚠️ May not work due to macOS-specific issues
+   - ⚠️ Self-signed binary will show security warnings
+
+3. **Use Linux VM or Docker** (Workaround)
+   - ✅ Guaranteed to work
+   - ❌ Requires VM overhead
+   - ❌ Port access complexity
 
 ---
 
-## 🚀 Conclusion
+## 🎯 Recommendation
 
-SerialPlot could theoretically run on macOS, but official support would require:
+**For your project**: Stick with `serial_plotter.py`
 
-1. **Initial effort**: 50-100 hours to set up build infrastructure
-2. **Ongoing costs**: 
-   - $99/year Apple Developer account
-   - 5-10 hours per macOS update (annual maintenance)
-   - Weekly support burden
-3. **Distribution complexity**:
-   - Code signing & notarization workflow
-   - Multiple architecture support
-   - Update distribution mechanism
+- ✅ Works on macOS immediately
+- ✅ Simpler than building SerialPlot
+- ✅ No security warnings
+- ✅ Easier to customize
+- ✅ Cross-platform (macOS/Linux/Windows identical)
 
-**For a small open-source project**: Not worth it.
-
-**Our Python solution**: Actually more practical for cross-platform support because:
-- No compilation needed
-- No code signing required
-- No architecture constraints
-- Easier to maintain
-- Faster to develop new features
-- Users can modify code directly
+SerialPlot is great on Linux/Windows where it's officially supported. On macOS, the Python solution is actually more practical.
 
 ---
 
-**Lesson**: Sometimes "from source on all platforms" is easier than "compiled binaries with security requirements on each platform" 📦
+**Summary**: SerialPlot *can* theoretically build on macOS but isn't officially supported, tested, or packaged for it. Our Python solution is better for cross-platform support including macOS.
 

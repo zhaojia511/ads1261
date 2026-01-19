@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "uart_cmd.c" "loadcell.c" "main.c"
+    SRCS "uart_cmd.c" "loadcell.c" "main.c" "ble_force.c"
     INCLUDE_DIRS "."
-    REQUIRES freertos esp_system driver esp_common ads1261 esp_timer spi_flash
+    REQUIRES freertos esp_system driver esp_common ads1261 esp_timer spi_flash bt
 )

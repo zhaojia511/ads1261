@@ -9,6 +9,7 @@
 #include "loadcell.h"
 #include "uart_cmd.h"
 #include "ads1261.h"
+#include "ble_force.h"
 
 static const char *TAG = "GRF_Platform";
 
@@ -33,13 +34,14 @@ static const char *TAG = "GRF_Platform";
 
 /* Force Platform Configuration */
 #define PGA_GAIN                ADS1261_PGA_GAIN_128        /* 128x gain for high resolution */
-#define DATA_RATE               ADS1261_DR_40000_SPS        /* 40ksps system rate (max data rate) */
-#define MEASUREMENT_INTERVAL_MS 10                          /* Read all 4 channels every 10ms */
+#define DATA_RATE               ADS1261_DR_40000_SPS        /* 40ksps with SINC5 filter (only filter at 40kSPS) */
+#define MEASUREMENT_INTERVAL_MS 10                          /* Read all 4 channels every 10ms (100 Hz) */
 
 /* Output Format Selection */
 #define OUTPUT_FORMAT_HUMAN     1   /* Readable format with labels */
 #define OUTPUT_FORMAT_CSV       0   /* CSV format for data logging */
-#define OUTPUT_FORMAT           OUTPUT_FORMAT_HUMAN
+#define OUTPUT_FORMAT_BLE       2   /* BLE streaming only (no serial output) */
+#define OUTPUT_FORMAT           OUTPUT_FORMAT_BLE
 
 static loadcell_t loadcell_device;
 static uint32_t measurement_count = 0;
@@ -60,7 +62,24 @@ static void measurement_task(void *arg)
         }
 
         measurement_count++;
-
+#if OUTPUT_FORMAT == OUTPUT_FORMAT_BLE
+        /* BLE streaming mode: Send notification every frame */
+        if (ble_force_is_connected()) {
+            uint16_t timestamp_ms = (uint16_t)(esp_timer_get_time() / 1000);
+            ble_force_notify(&loadcell_device, timestamp_ms);
+        }
+        
+        /* Log status periodically (every 100 frames ~ every 1000ms) */
+        if (measurement_count % 100 == 0) {
+            uint32_t timestamp_ms = (uint32_t)(esp_timer_get_time() / 1000);
+            if (ble_force_is_connected()) {
+                ESP_LOGI(TAG, "[%lu ms] BLE streaming active (%.1f Hz)", 
+                         timestamp_ms, 1000.0f / MEASUREMENT_INTERVAL_MS);
+            } else {
+                ESP_LOGI(TAG, "[%lu ms] Waiting for BLE connection...", timestamp_ms);
+            }
+        }
+#else
         /* Log measurements periodically (every 100 frames ~ every 1000ms) */
         if (measurement_count % 100 == 0) {
             float total_force = 0.0;
@@ -73,7 +92,7 @@ static void measurement_task(void *arg)
             ESP_LOGI(TAG, "[Frame %lu] Force readings:", measurement_count);
 #endif
 
-            for (int ch = 0; ch < 1; ch++) {  /* TEST: Read only 1 channel */
+            for (int ch = 0; ch < 4; ch++) {  /* Read all 4 channels */
                 total_force += loadcell_device.measurements[ch].force_newtons;
 
 #if OUTPUT_FORMAT == OUTPUT_FORMAT_CSV
@@ -91,6 +110,8 @@ static void measurement_task(void *arg)
             printf(",%.4f\n", total_force);
 #else
             ESP_LOGI(TAG, "  Total GRF: %.2f N", total_force);
+#endif
+        }
 #endif
         }
 
@@ -183,16 +204,36 @@ void app_main(void)
     }
 
     ESP_LOGI(TAG, "");
-
-    /* Initialize loadcell driver */
-    ret = loadcell_init(&loadcell_device, SPI2_HOST, -1, DRDY_PIN, PGA_GAIN, DATA_RATE);
+BLE Force Streaming */
+    ret = ble_force_init("ZPlate");
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize loadcell driver: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to initialize BLE: %s", esp_err_to_name(ret));
         return;
     }
+    ESP_LOGI(TAG, "BLE initialized - Device name: ZPlate");
+    ESP_LOGI(TAG, "Waiting for BLE connection...");
 
-    ESP_LOGI(TAG, "Configuration:");
-    ESP_LOGI(TAG, "  - Channels: 4 (differential bridge configuration)");
+    /* Initialize UART command interface */
+    uart_cmd_init(&loadcell_device);
+
+    /* Start measurement task */
+    xTaskCreate(measurement_task, "measurement", 4096, NULL, 5, NULL);
+
+    /* Start UART command task */
+    xTaskCreate(uart_cmd_task, "uart_cmd", 4096, NULL, 4, NULL);
+
+    ESP_LOGI(TAG, "All tasks started. Ready for BLE streaming!");
+    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, "BLE Configuration:");
+    ESP_LOGI(TAG, "  - Device Name: ZPlate");
+    ESP_LOGI(TAG, "  - Service UUID: 0x1815");
+    ESP_LOGI(TAG, "  - Characteristic UUID: 0x2A58");
+    ESP_LOGI(TAG, "  - Packet Size: 10 bytes (time counter + 4x int16)");
+    ESP_LOGI(TAG, "  - Time Counter: 16-bit ms (elapsed time, 0-65.5s)");
+    ESP_LOGI(TAG, "  - Notification Rate: ~100 Hz (configurable)");
+    ESP_LOGI(TAG, "  - Force Resolution: 0.1 N");
+    ESP_LOGI(TAG, "  - Force Range: ±3276 N (±327 kg)");
+    ESP_LOGI(TAG, "  - Future: 8-channel support (18 bytes total)");
     ESP_LOGI(TAG, "  - PGA Gain: 128x");
     ESP_LOGI(TAG, "  - Data Rate: 40 kSPS system (~1000-1200 Hz per channel)");
     ESP_LOGI(TAG, "  - Sample Interval: %d ms", MEASUREMENT_INTERVAL_MS);

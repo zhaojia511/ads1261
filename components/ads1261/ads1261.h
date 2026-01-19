@@ -71,6 +71,7 @@ extern "C" {
 #define ADS1261_REG_MODE0_FILTER_SINC3    0x02
 #define ADS1261_REG_MODE0_FILTER_SINC4    0x03
 #define ADS1261_REG_MODE0_FILTER_FIR      0x04  /* Default filter type */
+#define ADS1261_REG_MODE0_FILTER_SINC5    0x05  /* Required for 40kSPS */
 
 /* Reference Selection */
 #define ADS1261_REFSEL_INT      0x00

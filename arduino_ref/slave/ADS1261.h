@@ -55,7 +55,7 @@ struct ChannelData {
 #define ADS1261_FILTER_SINC3 (0x02)
 #define ADS1261_FILTER_SINC4 (0x03)
 #define ADS1261_FILTER_FIR (0x04)  // default
-#define ADS1261_FILTER_RESERVED (0x05)
+#define ADS1261_FILTER_SINC5 (0x05)  // Required for 40kSPS
 
 #define ADS1261_DR_2_5_SPS (0x00)
 #define ADS1261_DR_5_SPS (0x01)

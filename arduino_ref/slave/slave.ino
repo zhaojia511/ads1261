@@ -123,8 +123,8 @@ void setupHardware() {
 void configureADC() {
   adc.readAllRegisters(&regMap);
   
-  // 40kSPS data rate for fast channel switching
-  regMap.MODE0.bit.FILTER = ADS1261_FILTER_SINC1;
+  // 40kSPS data rate for fast channel switching (requires SINC5 filter per datasheet)
+  regMap.MODE0.bit.FILTER = ADS1261_FILTER_SINC5;
   regMap.MODE0.bit.DR = ADS1261_DR_40000_SPS;
   
   // Pulse conversion mode

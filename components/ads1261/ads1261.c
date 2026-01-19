@@ -146,13 +146,13 @@ esp_err_t ads1261_init(ads1261_t *device, spi_host_device_t host, int cs_pin, in
         ESP_LOGI(TAG, "PGA register set to 0x%02x (gain=128)", pga_reg);
     }
     
-    /* Set data rate to 40ksps to match project requirements */
-    uint8_t mode0_reg = (ADS1261_REG_MODE0_FILTER_FIR << 5) | ADS1261_DR_40000_SPS;  // 40ksps
+    /* Set data rate to 40ksps with SINC5 filter (only filter supported at 40kSPS per datasheet) */
+    uint8_t mode0_reg = (ADS1261_REG_MODE0_FILTER_SINC5 << 5) | ADS1261_DR_40000_SPS;  // 40ksps, SINC5
     esp_err_t mode0_ret = ads1261_write_register(device, ADS1261_REG_MODE0, mode0_reg);
     if (mode0_ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set MODE0 register: %s", esp_err_to_name(mode0_ret));
     } else {
-        ESP_LOGI(TAG, "MODE0 register set to 0x%02x (40ksps, FIR filter)", mode0_reg);
+        ESP_LOGI(TAG, "MODE0 register set to 0x%02x (40ksps, SINC5 filter)", mode0_reg);
     }
 
     /* Configure MODE1 for continuous conversion */
